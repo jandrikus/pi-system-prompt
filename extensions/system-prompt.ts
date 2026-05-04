@@ -2,7 +2,7 @@
  * /system-prompt — Display the full system prompt in a full-screen scrollable overlay.
  */
 import type { ExtensionAPI, Theme } from "@mariozechner/pi-coding-agent";
-import { matchesKey, visibleWidth } from "@mariozechner/pi-tui";
+import { matchesKey, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
 
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("system-prompt", {
@@ -32,10 +32,17 @@ export default function (pi: ExtensionAPI) {
   });
 }
 
+interface DisplayLine {
+  text: string;
+  originalIndex: number;
+  continuation: boolean;
+}
+
 class SystemPromptView {
   private scrollOffset = 0;
   private copiedAt = 0;
   private fullText: string;
+  private totalDisplayLines = 0;
 
   constructor(
     private tui: { height: number },
@@ -50,12 +57,13 @@ class SystemPromptView {
 
   handleInput(data: string): void {
     const visible = this.visibleLines();
+    const total = this.totalDisplayLines || this.lineCount;
     if (matchesKey(data, "up") || matchesKey(data, "k")) {
       if (this.scrollOffset > 0) this.scrollOffset--;
       return;
     }
     if (matchesKey(data, "down") || matchesKey(data, "j")) {
-      if (this.scrollOffset < this.lineCount - visible) this.scrollOffset++;
+      if (this.scrollOffset < total - visible) this.scrollOffset++;
       return;
     }
     if (matchesKey(data, "pageup")) {
@@ -64,7 +72,7 @@ class SystemPromptView {
     }
     if (matchesKey(data, "pagedown")) {
       this.scrollOffset = Math.min(
-        Math.max(0, this.lineCount - visible),
+        Math.max(0, total - visible),
         this.scrollOffset + visible,
       );
       return;
@@ -74,7 +82,7 @@ class SystemPromptView {
       return;
     }
     if (matchesKey(data, "end")) {
-      this.scrollOffset = Math.max(0, this.lineCount - visible);
+      this.scrollOffset = Math.max(0, total - visible);
       return;
     }
     if (matchesKey(data, "c")) {
@@ -93,11 +101,29 @@ class SystemPromptView {
     return Math.max(1, Math.floor(h * 0.92) - 4);
   }
 
+  private buildDisplayLines(contentW: number): DisplayLine[] {
+    const displayLines: DisplayLine[] = [];
+    for (let i = 0; i < this.lines.length; i++) {
+      const wrapped = wrapTextWithAnsi(this.lines[i], contentW);
+      for (let w = 0; w < wrapped.length; w++) {
+        displayLines.push({
+          text: wrapped[w],
+          originalIndex: i,
+          continuation: w > 0,
+        });
+      }
+    }
+    return displayLines;
+  }
+
   render(width: number): string[] {
     const th = this.theme;
     const innerW = width - 2; // account for border chars
+    const contentW = innerW - 1; // leading space
     const visible = this.visibleLines();
-    const border = th.fg("border", "");
+
+    const displayLines = this.buildDisplayLines(contentW);
+    this.totalDisplayLines = displayLines.length;
 
     const pad = (s: string, len: number) => {
       const vis = visibleWidth(s);
@@ -119,20 +145,23 @@ class SystemPromptView {
     out.push(row(""));
 
     // Content area
-    const end = Math.min(this.scrollOffset + visible, this.lineCount);
+    const end = Math.min(this.scrollOffset + visible, displayLines.length);
     for (let i = this.scrollOffset; i < end; i++) {
-      const line = this.lines[i];
+      const dl = displayLines[i];
+      const originalLine = this.lines[dl.originalIndex];
       let styled: string;
-      if (line.startsWith("Available tools:")) {
-        styled = th.fg("success", th.bold(line));
-      } else if (line.startsWith("Guidelines:")) {
-        styled = th.fg("accent", th.bold(line));
-      } else if (/^#+\s/.test(line)) {
-        styled = th.fg("accent", th.bold(line));
-      } else if (line.startsWith("- ")) {
-        styled = th.fg("muted", line);
+      if (dl.continuation) {
+        styled = dl.text;
+      } else if (originalLine.startsWith("Available tools:")) {
+        styled = th.fg("success", th.bold(dl.text));
+      } else if (originalLine.startsWith("Guidelines:")) {
+        styled = th.fg("accent", th.bold(dl.text));
+      } else if (/^#+\s/.test(originalLine)) {
+        styled = th.fg("accent", th.bold(dl.text));
+      } else if (originalLine.startsWith("- ")) {
+        styled = th.fg("muted", dl.text);
       } else {
-        styled = line;
+        styled = dl.text;
       }
       out.push(row(` ${styled}`));
     }
@@ -144,10 +173,10 @@ class SystemPromptView {
 
     // Footer
     const pct =
-      this.lineCount > 0
-        ? Math.round((this.scrollOffset / this.lineCount) * 100)
+      displayLines.length > 0
+        ? Math.round((this.scrollOffset / displayLines.length) * 100)
         : 0;
-    const footerLeft = `${this.scrollOffset + 1}-${end}/${this.lineCount} (${pct}%)`;
+    const footerLeft = `${this.scrollOffset + 1}-${end}/${displayLines.length} (${pct}%)`;
     const copyLabel = Date.now() - this.copiedAt < 2000
       ? th.fg("success", "copied")
       : "copy";
