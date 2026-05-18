@@ -17,10 +17,11 @@ export default function (pi: ExtensionAPI) {
       const lineCount = promptLines.length;
 
       // Gather tool definitions
-      const allTools = pi.getAllTools();
+      const active = new Set(pi.getActiveTools());
+      const activeTools = pi.getAllTools().filter(t => active.has(t.name));
 
       // Build tool definition text lines
-      const toolLines = buildToolLines(allTools);
+      const toolLines = buildToolLines(activeTools);
 
       // Combine: system prompt + separator + tool definitions
       const allLines = [
@@ -39,7 +40,7 @@ export default function (pi: ExtensionAPI) {
             tui,
             allLines,
             promptLines,
-            allTools,
+            activeTools,
             lineCount,
             charCount,
             totalLineCount,
