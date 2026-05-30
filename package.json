@@ -8,6 +8,11 @@
     "type": "git",
     "url": "https://github.com/jandrikus/pi-system-prompt"
   },
+  "files": ["extensions"],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
   "pi": {
     "extensions": ["./extensions"]
   }
