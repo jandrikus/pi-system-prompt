@@ -1,6 +1,6 @@
 {
   "name": "pi-system-prompt",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Display the full pi coding agent system prompt with injected tools, guidelines, context files, and skills in a scrollable overlay",
   "keywords": ["pi-package", "pi-extension", "system-prompt", "debugging"],
   "license": "Apache-2.0",

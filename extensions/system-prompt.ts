@@ -6,12 +6,24 @@ import type { ExtensionAPI, Theme, ToolDefinition } from "@mariozechner/pi-codin
 import { matchesKey, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
 
 export default function (pi: ExtensionAPI) {
+  // Listen for date from pi-today extension
+  let todayDate: string | undefined;
+  pi.events.on("today:date", (data: string) => {
+    todayDate = data;
+  });
+
   pi.registerCommand("system-prompt", {
     description: "Show the current system prompt and tool definitions",
     handler: async (_args, ctx) => {
       await ctx.waitForIdle();
 
-      const prompt = ctx.getSystemPrompt();
+      let prompt = ctx.getSystemPrompt();
+
+      // Prepend the date from pi-today if available
+      if (todayDate) {
+        prompt = `${todayDate}\n\n${prompt}`;
+      }
+
       const promptLines = prompt.split("\n");
       const charCount = prompt.length;
       const lineCount = promptLines.length;
