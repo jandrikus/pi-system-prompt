@@ -15,7 +15,9 @@ export default function (pi: ExtensionAPI) {
   pi.registerCommand("system-prompt", {
     description: "Show the current system prompt and tool definitions",
     handler: async (_args, ctx) => {
-      await ctx.waitForIdle();
+      if (!ctx.hasUI) {
+        return;
+      }
 
       let prompt = ctx.getSystemPrompt();
 
